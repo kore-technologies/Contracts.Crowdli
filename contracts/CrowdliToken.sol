@@ -4,7 +4,7 @@ import "./IERC1404.sol";
 import "./math/SafeMath.sol";
 import "./access/Roles.sol";
 
-contract Crowdli is ERC20, ERC1404, Ownable {
+contract CrowdliToken is ERC20, ERC1404, Ownable {
     using SafeMath for uint256;
     using Roles for Roles.Role;
 
@@ -23,6 +23,12 @@ contract Crowdli is ERC20, ERC1404, Ownable {
     Event[] private _burnHistory;
     Event[] private _mintHistory;
 
+    constructor () internal {
+        _symbol = "CRT";
+        _name = "CrowdliToken";
+        _decimals = 18;
+    }
+
     struct Event {
         constructor(uint256 timestamp, address _address, uint8 _event) {
             _timestamp = timestamp;
@@ -40,11 +46,11 @@ contract Crowdli is ERC20, ERC1404, Ownable {
         uint8 private _event;
 
         function eventTimestamp() public view returns (uint256) {
-            return _totalSupply;
+            return _timestamp;
         }
 
         function eventAddress() public view returns (address) {
-            return _totalSupply;
+            return _address;
         }
 
         function eventId() public view returns (uint8) {

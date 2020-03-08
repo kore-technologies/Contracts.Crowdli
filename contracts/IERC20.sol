@@ -1,7 +1,7 @@
 pragma solidity ^0.6.0;
 
 /**
- * Interface of the ERC20 standard as defined in the EIP. Does not include
+ * Interface of the ERC20 standard as defined in the EIP.
  */
 interface IERC20 {
     /**
