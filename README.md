@@ -1,2 +1,2 @@
 # Contracts.Crowdli
-Crowdly Token
+Crowdli Token
