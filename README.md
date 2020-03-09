@@ -49,6 +49,6 @@ Or you can run tests on develop network without pre-launching:
 ```truffle test```
 
 If you meet *out of gas* issues while testing with ```truffle develop``` or ```truffle test``` then it's recommended
-to switch to external client (consider [Ganache](truffleframework.com/ganache/)) instead of built-in one.
+to switch to external client instead of built-in one.
 
 See [documentation](http://truffleframework.com/docs/) for further scenarios.
