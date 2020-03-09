@@ -148,11 +148,11 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
             return TO_NOT_IN_WHITELIST_ROLE;
         } else if(_blocklist.hasRole(from)){
             return FROM_IN_BLACKLIST_ROLE;
-        }  else if(_blocklist.hasRole(to)){
+        } else if(_blocklist.hasRole(to)){
            return TO_IN_BLACKLIST_ROLE;
         } else if(_balances[from] > value){
            return NOT_ENOUGH_FUNDS;
-        }  else if(_balances[from].sub(_allocated[from]) < value){
+        } else if(_balances[from].sub(_allocated[from]) < value){
            return NOT_ENOUGH_UNALLOCATED_FUNDS;
         } else {
            return NO_RESTRICTIONS;
