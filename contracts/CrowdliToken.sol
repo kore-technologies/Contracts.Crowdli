@@ -19,8 +19,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
 
     mapping (address => uint256) private _balances;
     mapping (address => uint256) private _allocated;
-    mapping (uint8 => bytes32) private _codes;
-    mapping (uint8 => bytes32) private _eventCodes;
+    mapping (uint8 => string) private _codes;
     mapping (address => mapping (address => uint256)) private _allowances;
     mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
 
@@ -30,20 +29,24 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     uint8 private _decimals;
 
     uint8 private NO_RESTRICTIONS = 0;
-    uint8 private NOT_IN_WHITELIST_ROLE = 1;
-    uint8 private IN_BLACKLIST_ROLE = 2;
-    uint8 private NOT_ENOUGH_FUNDS = 3;
-    uint8 private NOT_ENOUGH_UNALLOCATED_FUNDS = 4;
+    uint8 private FROM_NOT_IN_WHITELIST_ROLE = 1;
+    uint8 private TO_NOT_IN_WHITELIST_ROLE = 2;
+    uint8 private FROM_IN_BLACKLIST_ROLE = 3;
+    uint8 private TO_IN_BLACKLIST_ROLE = 4;
+    uint8 private NOT_ENOUGH_FUNDS = 5;
+    uint8 private NOT_ENOUGH_UNALLOCATED_FUNDS = 6;
 
-    constructor () internal {
+    constructor() public {
         _symbol = "CRT";
         _name = "CrowdliToken";
         _decimals = 18;
         _codes[0] = "NO_RESTRICTIONS";
-        _codes[1] = "NOT_IN_WHITELIST_ROLE";
-        _codes[2] = "IN_BLACKLIST_ROLE";
-        _codes[3] = "NOT_ENOUGH_FUNDS";
-        _codes[4] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
+        _codes[1] = "FROM_NOT_IN_WHITELIST_ROLE";
+        _codes[2] = "TO_NOT_IN_WHITELIST_ROLE";
+        _codes[3] = "FROM_IN_BLACKLIST_ROLE";
+        _codes[4] = "TO_IN_BLACKLIST_ROLE";
+        _codes[5] = "NOT_ENOUGH_FUNDS";
+        _codes[6] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
     }
 
     function totalSupply() public view override returns (uint256) {
@@ -130,19 +133,23 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         emit Mint(account, amount, code);
     }
 
-    function messageForCode(uint8 eventCode) public view returns (bytes32){
+    function messageForCode(uint8 eventCode) public view returns (string memory){
         return _codes[eventCode];
     }
 
-    function messageForTransferRestriction(uint8 restrictionCode) public view returns (bytes32){
+    function messageForTransferRestriction(uint8 restrictionCode) public view override returns (string memory){
         return _codes[restrictionCode];
     }
 
-    function detectTransferRestriction(address from, address to, uint256 value) public view returns (uint8){
+    function detectTransferRestriction(address from, address to, uint256 value) public view override returns (uint8){
         if(!_whitelist.hasRole(from)){
-           return NOT_IN_WHITELIST_ROLE;
-        } else if(_blacklist.has(from)){
-           return IN_BLACKLIST_ROLE;
+           return FROM_NOT_IN_WHITELIST_ROLE;
+        } else if(_whitelist.hasRole(to)){
+            return TO_NOT_IN_WHITELIST_ROLE;
+        } else if(_blocklist.hasRole(from)){
+            return FROM_IN_BLACKLIST_ROLE;
+        }  else if(_blocklist.hasRole(to)){
+           return TO_IN_BLACKLIST_ROLE;
         } else if(_balances[from] > value){
            return NOT_ENOUGH_FUNDS;
         }  else if(_balances[from].sub(_allocated[from]) < value){
@@ -158,34 +165,29 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         }
     }
 
-    function removeWhitelistRole(address memory whitelistedAddress) public onlyOwner {
+    function removeWhitelistRole(address whitelistedAddress) public onlyOwner {
         require(_balances[whitelistedAddress] == 0, "CROWDLITOKEN: To remove someone from the whitelist the balance have to be 0");
         _whitelist.removeRole(whitelistedAddress);
     }
 
-    function addBlockRole(address memory blockedAddress, uint8 code) public onlyOwner {
-        _blockHistory.push(EventEntry);
+    function addBlockRole(address blockedAddress, uint8 code) public onlyOwner {
         _blocklist.addRole(blockedAddress);
         emit Block(blockedAddress, code);
     }
 
-    function removeBlockRole(address memory blockedAddress) public onlyOwner {
+    function removeBlockRole(address blockedAddress) public onlyOwner {
         _blocklist.removeRole(blockedAddress);
     }
 
-    function allocatedTokens(address owner) public view returns (bool){
+    function allocatedTokens(address owner) public view returns (uint256){
 	    return _allocated[owner];
     }
 
-    function propertyLock(address owner, bytes32[64] propertyAddress) public view onlyOwner returns (uint256) {
+    function propertyLock(address owner, bytes32 propertyAddress) public view onlyOwner returns (uint256) {
         return _propertyAmountLocks[owner][propertyAddress];
     }
 
-    function properties(address owner) public view onlyOwner returns (uint256) {
-        return _propertyAmountLocks[owner];
-    }
-
-    function setCode(uint8 code, bytes32 codeText) public onlyOwner {
+    function setCode(uint8 code, string memory codeText) public onlyOwner {
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
 
         _codes[code] = codeText;
@@ -199,17 +201,17 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
 
     function allocateAmountFromAddressForProperty(address owner, bytes32 propertyAddress, uint256 amount) internal onlyOwner {
         require(owner != address(0), "ERC20: approve from the zero address");
-        require(bytes(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
+        require(bytes32(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
 
-        _allocated[propertyAddress] = _allocated[propertyAddress].add(amount);
+        _allocated[owner] = _allocated[owner].add(amount);
 	    _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].add(amount);
     }
 
     function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress) internal onlyOwner {
         require(owner != address(0), "ERC20: approve from the zero address");
-        require(bytes(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
+        require(bytes32(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
 
-        _allocated[propertyAddress] = _allocated[propertyAddress].sub(_propertyAmountLocks[owner][propertyAddress]);
+        _allocated[owner] = _allocated[owner].sub(_propertyAmountLocks[owner][propertyAddress]);
 	    delete _propertyAmountLocks[owner][propertyAddress];
     }
 

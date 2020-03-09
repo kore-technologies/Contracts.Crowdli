@@ -11,5 +11,5 @@ interface IERC1404 {
     /// @notice Returns a human-readable message for a given restriction code
     /// @param restrictionCode Identifier for looking up a message
     /// @return Text showing the restriction's reasoning
-    function messageForTransferRestriction (uint8 restrictionCode) external view returns (string);
+    function messageForTransferRestriction (uint8 restrictionCode) external view returns (string memory);
 }
