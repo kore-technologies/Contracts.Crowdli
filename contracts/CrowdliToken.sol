@@ -4,6 +4,7 @@ import "./IERC20.sol";
 import "./IERC1404.sol";
 import "./math/SafeMath.sol";
 import "./access/Roles.sol";
+import "./ownership/Ownable.sol";
 
 contract CrowdliToken is ERC20, ERC1404, Ownable {
     using SafeMath for uint256;
@@ -11,52 +12,44 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
 
     Roles.Role _blocklist;
     Roles.Role _whitelist;
+
     mapping (address => uint256) private _balances;
+    mapping (address => uint256) private _allocated;
     mapping (uint8 => bytes32) private _codes;
     mapping (uint8 => bytes32) private _eventCodes;
     mapping (address => mapping (address => uint256)) private _allowances;
-    mapping (address => mapping (bytes32[64] => uint256)) private _propertyAmountLocks;
+    mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
+
     uint256 private _totalSupply;
     bytes32 private _name;
     bytes32 private _symbol;
-    uint8 private _decimals
-    Event[] private _blockHistory;
-    Event[] private _burnHistory;
-    Event[] private _mintHistory;
+    uint8 private _decimals;
+
+    EventEntry[] private _blockHistory;
+    EventEntry[] private _burnHistory;
+    EventEntry[] private _mintHistory;
+
+    uint8 private NO_RESTRICTIONS = 0;
+    uint8 private NOT_IN_WHITELIST_ROLE = 1;
+    uint8 private IN_BLACKLIST_ROLE = 2;
+    uint8 private NOT_ENOUGH_FUNDS = 3;
+    uint8 private NOT_ENOUGH_UNALLOCATED_FUNDS = 4;
 
     constructor () internal {
         _symbol = "CRT";
         _name = "CrowdliToken";
         _decimals = 18;
+        _codes[0] = "NO_RESTRICTIONS";
+        _codes[1] = "NOT_IN_WHITELIST_ROLE";
+        _codes[2] = "IN_BLACKLIST_ROLE";
+        _codes[3] = "NOT_ENOUGH_FUNDS";
+        _codes[4] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
     }
 
-    struct Event {
-        constructor(uint256 timestamp, address _address, uint8 _event) {
-            _timestamp = timestamp;
-	    _address = address;
-	    _event = event;
-        }
-
-        // address that is related to this Event
-        uint256 private _timestamp;
-
-        // address that is related to this Event
-        address private _address;
-
-        // event code string e.g. 1 = CUSTOMER_MINTING, 2 = DIVIDEND_MINTING
-        uint8 private _event;
-
-        function eventTimestamp() public view returns (uint256) {
-            return _timestamp;
-        }
-
-        function eventAddress() public view returns (address) {
-            return _address;
-        }
-
-        function eventId() public view returns (uint8) {
-            return _event;
-        }
+    struct EventEntry {
+        uint256 _timestamp;
+        address _address;
+        uint8 _event;
     }
 
     function addRestriction(uint8 restrictionCode, bytes32 restriction) internal onlyOwner {
@@ -164,13 +157,15 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
 
     function detectTransferRestriction(address from, address to, uint256 value) public view override returns (uint8){
         if(!_whitelist.has(msg.sender)){
-           return 1;
+           return NOT_IN_WHITELIST_ROLE;
         } else if(_blacklist.has(msg.sender)){
-           return 2;
-        } else if(hasEnoughUnallocatedFunds(msg.sender)){
-           return 3;
+           return IN_BLACKLIST_ROLE;
+        } else if(_balances[msg.sender] > value){
+           return NOT_ENOUGH_FUNDS;
+        }  else if(_balances[msg.sender].sub(_allocated[msg.sender]) < value){
+           return NOT_ENOUGH_UNALLOCATED_FUNDS;
         } else {
-           return 0;
+           return NO_RESTRICTIONS;
         }
     }
 
@@ -186,25 +181,43 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
         }
     }
 
-    function hasEnoughUnallocatedFunds(address owner) public view returns (bool){
-        // TODO: Calculate
-	return true;
+    function allocatedFunds(address owner) public view returns (bool){
+	    return _allocated[owner];
     }
 
     function propertyLock(address owner, bytes32[64] propertyAddress) public view onlyOwner returns (uint256) {
         return _propertyAmountLocks[owner][propertyAddress];
     }
 
-    function allocateAmountFromAddressForProperty(address owner, bytes32[64] propertyAddress, uint256 amount) internal onlyOwner {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-	_propertyAmountLocks[owner][propertyAddress] = amount;
+    function properties(address owner) public view onlyOwner returns (uint256) {
+        return _propertyAmountLocks[owner];
     }
 
-    function unallocatePropertyFromAddress(address owner, bytes32[64] propertyAddress) internal onlyOwner {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
+    function setCode(uint8 code, bytes32 codeText) public onlyOwner {
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
 
-	delete _propertyAmountLocks[owner][propertyAddress];
+        _codes[code] = codeText;
+    }
+
+    function removeCode(uint8 code) public onlyOwner {
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        delete _codes[code];
+    }
+
+    function allocateAmountFromAddressForProperty(address owner, bytes32 propertyAddress, uint256 amount) internal onlyOwner {
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(bytes(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
+
+        _allocated[propertyAddress] = _allocated[propertyAddress].add(amount);
+	    _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].add(amount);
+    }
+
+    function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress) internal onlyOwner {
+        require(owner != address(0), "ERC20: approve from the zero address");
+        require(bytes(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
+
+        _allocated[propertyAddress] = _allocated[propertyAddress].sub(_propertyAmountLocks[owner][propertyAddress]);
+	    delete _propertyAmountLocks[owner][propertyAddress];
     }
 }
