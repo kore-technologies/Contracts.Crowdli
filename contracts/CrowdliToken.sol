@@ -6,7 +6,7 @@ import "./math/SafeMath.sol";
 import "./access/Roles.sol";
 import "./ownership/Ownable.sol";
 
-contract CrowdliToken is ERC20, ERC1404, Ownable {
+contract CrowdliToken is IERC20, IERC1404, Ownable {
     using SafeMath for uint256;
     using Roles for Roles.Role;
 
