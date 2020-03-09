@@ -144,7 +144,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     function detectTransferRestriction(address from, address to, uint256 value) public view override returns (uint8){
         if(!_whitelist.hasRole(from)){
            return FROM_NOT_IN_WHITELIST_ROLE;
-        } else if(_whitelist.hasRole(to)){
+        } else if(!_whitelist.hasRole(to)){
             return TO_NOT_IN_WHITELIST_ROLE;
         } else if(_blocklist.hasRole(from)){
             return FROM_IN_BLACKLIST_ROLE;
