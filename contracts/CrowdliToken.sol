@@ -25,10 +25,6 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
     bytes32 private _symbol;
     uint8 private _decimals;
 
-    EventEntry[] private _blockHistory;
-    EventEntry[] private _burnHistory;
-    EventEntry[] private _mintHistory;
-
     uint8 private NO_RESTRICTIONS = 0;
     uint8 private NOT_IN_WHITELIST_ROLE = 1;
     uint8 private IN_BLACKLIST_ROLE = 2;
@@ -44,16 +40,6 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
         _codes[2] = "IN_BLACKLIST_ROLE";
         _codes[3] = "NOT_ENOUGH_FUNDS";
         _codes[4] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
-    }
-
-    struct EventEntry {
-        uint256 _timestamp;
-        address _address;
-        uint8 _event;
-    }
-
-    function addRestriction(uint8 restrictionCode, bytes32 restriction) internal onlyOwner {
-        _restrictionCodes[restrictionCode] = restriction;
     }
 
     function totalSupply() public view override returns (uint256) {
@@ -97,9 +83,7 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
-        require(_whitelist.has(msg.sender), "ADDRESS PROVIDED IS NOT ON THE WHITELIST");
-        require(!_blocklist.has(msg.sender), "ADDRESS PROVIDED IS ON THE BLACKLIST");
-        require(hasEnoughUnallocatedFunds(msg.sender), "ADDRESS PROVIDED HAS NOT ENOUGH UNALLOCATED FUNDS");
+        require(detectTransferRestriction(sender,recipient,amount) != NO_RESTRICTIONS, "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
 
         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);
@@ -130,39 +114,34 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    function _burnFrom(address account, uint256 amount) internal onlyOwner {
+    function burnFrom(address account, uint256 amount, uint8 code) public onlyOwner {
         _burn(account, amount);
         _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "ERC20: burn amount exceeds allowance"));
+        emit Burn(account, amount, code);
     }
 
-    function mintHistory() public view returns (Event[]) {
-        return _mintHistory;
-     }
+    function mintTo(address account, uint256 amount, uint8 code) public onlyOwner {
+        _mint(account, amount);
+        _approve(account, _msgSender(), _allowances[account][_msgSender()].add(amount));
+        emit Mint(account, amount, code);
+    }
 
-    function burnHistory() public view returns (Event[]) {
-        return _burnHistory;
-     }
-
-    function blockHistory() public view returns (Event[]) {
-        return _blockHistory;
-     }
-
-    function messageForEvent(uint8 eventCode) public view override returns (bytes32){
+    function messageForCode(uint8 eventCode) public view returns (bytes32){
         return _codes[eventCode];
     }
 
-    function messageForTransferRestriction(uint8 restrictionCode) public view override returns (bytes32){
+    function messageForTransferRestriction(uint8 restrictionCode) public view returns (bytes32){
         return _codes[restrictionCode];
     }
 
-    function detectTransferRestriction(address from, address to, uint256 value) public view override returns (uint8){
-        if(!_whitelist.has(msg.sender)){
+    function detectTransferRestriction(address from, address to, uint256 value) public view returns (uint8){
+        if(!_whitelist.hasRole(from)){
            return NOT_IN_WHITELIST_ROLE;
-        } else if(_blacklist.has(msg.sender)){
+        } else if(_blacklist.has(from)){
            return IN_BLACKLIST_ROLE;
-        } else if(_balances[msg.sender] > value){
+        } else if(_balances[from] > value){
            return NOT_ENOUGH_FUNDS;
-        }  else if(_balances[msg.sender].sub(_allocated[msg.sender]) < value){
+        }  else if(_balances[from].sub(_allocated[from]) < value){
            return NOT_ENOUGH_UNALLOCATED_FUNDS;
         } else {
            return NO_RESTRICTIONS;
@@ -171,17 +150,26 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
 
     function addWhitelistRoles(address[] memory whitelistedAddresses) public onlyOwner {
         for(uint i=0; i< whitelistedAddresses.length; i++){
-            _whitelist.add(whitelistedAddresses[i]);
+            _whitelist.addRole(whitelistedAddresses[i]);
         }
     }
 
-    function addBlockRoles(address[] memory blockedAddresses) public onlyOwner {
-        for(uint i=0; i< blockedAddresses.length; i++){
-            _blocklist.add(blockedAddresses[i]);
-        }
+    function removeWhitelistRole(address memory whitelistedAddress) public onlyOwner {
+        require(_balances[whitelistedAddress] == 0, "CROWDLITOKEN: To remove someone from the whitelist the balance have to be 0");
+        _whitelist.removeRole(whitelistedAddress);
     }
 
-    function allocatedFunds(address owner) public view returns (bool){
+    function addBlockRole(address memory blockedAddress, uint8 code) public onlyOwner {
+        _blockHistory.push(EventEntry);
+        _blocklist.addRole(blockedAddress);
+        emit Block(blockedAddress, code);
+    }
+
+    function removeBlockRole(address memory blockedAddress) public onlyOwner {
+        _blocklist.removeRole(blockedAddress);
+    }
+
+    function allocatedTokens(address owner) public view returns (bool){
 	    return _allocated[owner];
     }
 
@@ -220,4 +208,8 @@ contract CrowdliToken is ERC20, ERC1404, Ownable {
         _allocated[propertyAddress] = _allocated[propertyAddress].sub(_propertyAmountLocks[owner][propertyAddress]);
 	    delete _propertyAmountLocks[owner][propertyAddress];
     }
+
+    event Burn(address indexed from, uint256 value, uint8 code);
+    event Mint(address indexed to, uint256 value, uint8 code);
+    event Block(address indexed blockAddress, uint8 code);
 }
