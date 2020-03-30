@@ -1,0 +1,7 @@
+{
+  "name": "Contracts.Crowdli",
+  "version": "1.0.0",
+  "dependencies": {
+    "openzeppelin-solidity": "^2.5.0"
+  }
+}

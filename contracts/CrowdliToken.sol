@@ -1,21 +1,31 @@
-pragma solidity ^0.6.0;
+pragma solidity ^0.5.0;
 
-import "./IERC20.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/access/Roles.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "./IERC1404.sol";
-import "./math/SafeMath.sol";
-import "./access/Roles.sol";
-import "./ownership/Ownable.sol";
-
-/**
- * TODO: Comments
- */
 
 contract CrowdliToken is IERC20, IERC1404, Ownable {
+    /**
+     * Arithmetic operations in Solidity wrap on overflow. This can easily result
+     * in bugs, because programmers usually assume that an overflow raises an
+     * error, which is the standard behavior in high level programming languages.
+     * `SafeMath` restores this intuition by reverting the transaction when an
+     * operation overflows.
+     *
+     * Using this library instead of the unchecked operations eliminates an entire
+     * class of bugs, so it's recommended to use it always.
+     */
     using SafeMath for uint256;
+
+    /**
+     * Library for managing addresses assigned to a Role.
+     */
     using Roles for Roles.Role;
 
-    Roles.Role _blocklist;
-    Roles.Role _whitelist;
+    Roles.Role _transferblock;
+    Roles.Role _kyc;
 
     mapping (address => uint256) private _balances;
     mapping (address => uint256) private _allocated;
@@ -24,79 +34,153 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
 
     uint256 private _totalSupply;
-    bytes32 private _name;
-    bytes32 private _symbol;
-    uint8 private _decimals;
+    bytes32 public constant _name = "CrowdliToken";
+    bytes32 public constant _symbol = "CRT";
+    uint8 public constant _decimals = 18;
 
-    uint8 private NO_RESTRICTIONS = 0;
-    uint8 private FROM_NOT_IN_WHITELIST_ROLE = 1;
-    uint8 private TO_NOT_IN_WHITELIST_ROLE = 2;
-    uint8 private FROM_IN_BLACKLIST_ROLE = 3;
-    uint8 private TO_IN_BLACKLIST_ROLE = 4;
-    uint8 private NOT_ENOUGH_FUNDS = 5;
-    uint8 private NOT_ENOUGH_UNALLOCATED_FUNDS = 6;
+    uint8 private constant NO_RESTRICTIONS = 0;
+    uint8 private constant FROM_NOT_IN_KYC_ROLE = 1;
+    uint8 private constant TO_NOT_IN_KYC_ROLE = 2;
+    uint8 private constant FROM_IN_TRANSFERBLOCK_ROLE = 3;
+    uint8 private constant TO_IN_TRANSFERBLOCK_ROLE = 4;
+    uint8 private constant NOT_ENOUGH_FUNDS = 5;
+    uint8 private constant NOT_ENOUGH_UNALLOCATED_FUNDS = 6;
 
     constructor() public {
-        _symbol = "CRT";
-        _name = "CrowdliToken";
-        _decimals = 18;
         _codes[0] = "NO_RESTRICTIONS";
-        _codes[1] = "FROM_NOT_IN_WHITELIST_ROLE";
-        _codes[2] = "TO_NOT_IN_WHITELIST_ROLE";
-        _codes[3] = "FROM_IN_BLACKLIST_ROLE";
-        _codes[4] = "TO_IN_BLACKLIST_ROLE";
+        _codes[1] = "FROM_NOT_IN_KYC_ROLE";
+        _codes[2] = "TO_NOT_IN_KYC_ROLE";
+        _codes[3] = "FROM_IN_TRANSFERBLOCK_ROLE";
+        _codes[4] = "TO_IN_TRANSFERBLOCK_ROLE";
         _codes[5] = "NOT_ENOUGH_FUNDS";
         _codes[6] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
     }
 
-    function totalSupply() public view override returns (uint256) {
+    /**
+     * Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256) {
         return _totalSupply;
     }
 
-    function balanceOf(address account) public view override returns (uint256) {
+    /**
+     * Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256) {
         return _balances[account];
     }
 
-    function transfer(address recipient, uint256 amount) public override returns (bool) {
+    /**
+     * Moves `amount` tokens from the caller's account to `recipient`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address recipient, uint256 amount) external returns (bool) {
         _transfer(_msgSender(), recipient, amount);
         return true;
     }
 
-    function allowance(address owner, address spender) public view override returns (uint256) {
+    /**
+     * Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256) {
         return _allowances[owner][spender];
     }
 
-    function approve(address spender, uint256 amount) public override returns (bool) {
+    /**
+     * Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool) {
         _approve(_msgSender(), spender, amount);
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
+    /**
+     * Moves `amount` tokens from `sender` to `recipient` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool) {
         _transfer(sender, recipient, amount);
         _approve(sender, _msgSender(), _allowances[sender][_msgSender()].sub(amount, "ERC20: transfer amount exceeds allowance"));
         return true;
     }
 
-    function increaseAllowance(address spender, uint256 addedValue) public returns (bool) {
+    /**
+     * Atomically increases the allowance granted to `spender` by the caller.
+     *
+     * Emits an {Approval} event indicating the updated allowance.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     */
+    function increaseAllowance(address spender, uint256 addedValue) external returns (bool) {
         _approve(_msgSender(), spender, _allowances[_msgSender()][spender].add(addedValue));
         return true;
     }
 
-    function decreaseAllowance(address spender, uint256 subtractedValue) public returns (bool) {
+    /**
+     * Atomically decreases the allowance granted to `spender` by the caller.
+     *
+     * Emits an {Approval} event indicating the updated allowance.
+     *
+     * Requirements:
+     *
+     * - `spender` cannot be the zero address.
+     * - `spender` must have allowance for the caller of at least
+     * `subtractedValue`.
+     */
+    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool) {
         _approve(_msgSender(), spender, _allowances[_msgSender()][spender].sub(subtractedValue, "ERC20: decreased allowance below zero"));
         return true;
     }
 
+    /**
+     * Moves tokens `amount` from `sender` to `recipient`.
+     *
+     * Emits a {Transfer} event.
+     *
+     * Requirements:
+     *
+     * - `sender` cannot be the zero address.
+     * - `recipient` cannot be the zero address.
+     * - `sender` must have a balance of at least `amount`.
+     */
     function _transfer(address sender, address recipient, uint256 amount) internal {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
-        require(detectTransferRestriction(sender,recipient,amount) != NO_RESTRICTIONS, "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
+        require(detectTransferRestriction(sender,recipient,amount) == NO_RESTRICTIONS, "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
 
         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
     }
 
+    /**
+     * Creates `amount` tokens and assigns them to `account`, increasing
+     * the total supply.
+     *
+     * Emits a {Transfer} event with `from` set to the zero address.
+     *
+     * Requirements
+     *
+     * - `to` cannot be the zero address.
+     */
     function _mint(address account, uint256 amount) internal onlyOwner {
         require(account != address(0), "ERC20: mint to the zero address");
 
@@ -105,6 +189,17 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         emit Transfer(address(0), account, amount);
     }
 
+    /**
+     * Destroys `amount` tokens from `account`, reducing the
+     * total supply.
+     *
+     * Emits a {Transfer} event with `to` set to the zero address.
+     *
+     * Requirements
+     *
+     * - `account` cannot be the zero address.
+     * - `account` must have at least `amount` tokens.
+     */
     function _burn(address account, uint256 amount) internal onlyOwner {
         require(account != address(0), "ERC20: burn from the zero address");
 
@@ -113,6 +208,16 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         emit Transfer(account, address(0), amount);
     }
 
+    /**
+     * Sets `amount` as the allowance of `spender` over the `owner`s tokens.
+     *
+     * Emits an {Approval} event.
+     *
+     * Requirements:
+     *
+     * - `owner` cannot be the zero address.
+     * - `spender` cannot be the zero address.
+     */
     function _approve(address owner, address spender, uint256 amount) internal {
         require(owner != address(0), "ERC20: approve from the zero address");
         require(spender != address(0), "ERC20: approve to the zero address");
@@ -121,36 +226,54 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         emit Approval(owner, spender, amount);
     }
 
-    function burnFrom(address account, uint256 amount, uint8 code) public onlyOwner {
+    /**
+     * Destroys `amount` tokens from `account`.`amount` is then deducted
+     * from the caller's allowance.
+     *
+     * See {_burn} and {_approve}.
+     */
+    function burnFrom(address account, uint256 amount, uint8 code) external onlyOwner {
         _burn(account, amount);
-        _approve(account, _msgSender(), _allowances[account][_msgSender()].sub(amount, "ERC20: burn amount exceeds allowance"));
         emit Burn(account, amount, code);
     }
 
-    function mintTo(address account, uint256 amount, uint8 code) public onlyOwner {
+    /**
+     * Creates `amount` tokens and assigns them to `account`, increasing
+     * the total supply.
+     *
+     * Emits a {Mint} event with `from` set to the zero address.
+     *
+     * Requirements
+     *
+     * - `to` cannot be the zero address.
+     */
+    function mintTo(address account, uint256 amount, uint8 code) external onlyOwner {
         _mint(account, amount);
         _approve(account, _msgSender(), _allowances[account][_msgSender()].add(amount));
         emit Mint(account, amount, code);
     }
 
-    function messageForCode(uint8 eventCode) public view returns (string memory){
-        return _codes[eventCode];
-    }
 
-    function messageForTransferRestriction(uint8 restrictionCode) public view override returns (string memory){
+    /**
+     * Returns a human-readable message for a given restriction code
+     */
+    function messageForTransferRestriction(uint8 restrictionCode) external view returns (string memory){
         return _codes[restrictionCode];
     }
 
-    function detectTransferRestriction(address from, address to, uint256 value) public view override returns (uint8){
-        if(!_whitelist.hasRole(from)){
-           return FROM_NOT_IN_WHITELIST_ROLE;
-        } else if(!_whitelist.hasRole(to)){
-            return TO_NOT_IN_WHITELIST_ROLE;
-        } else if(_blocklist.hasRole(from)){
-            return FROM_IN_BLACKLIST_ROLE;
-        } else if(_blocklist.hasRole(to)){
-           return TO_IN_BLACKLIST_ROLE;
-        } else if(_balances[from] > value){
+    /**
+     * Detects if a transfer will be reverted and if so returns an appropriate reference code
+     */
+    function detectTransferRestriction(address from, address to, uint256 value) public view returns (uint8){
+        if(!_kyc.has(from)){
+           return FROM_NOT_IN_KYC_ROLE;
+        } else if(!_kyc.has(to)){
+            return TO_NOT_IN_KYC_ROLE;
+        } else if(_transferblock.has(from)){
+            return FROM_IN_TRANSFERBLOCK_ROLE;
+        } else if(_transferblock.has(to)){
+           return TO_IN_TRANSFERBLOCK_ROLE;
+        } else if(_balances[from] < value){
            return NOT_ENOUGH_FUNDS;
         } else if(_balances[from].sub(_allocated[from]) < value){
            return NOT_ENOUGH_UNALLOCATED_FUNDS;
@@ -159,63 +282,117 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         }
     }
 
-    function addWhitelistRoles(address[] memory whitelistedAddresses) public onlyOwner {
+    /**
+     * Mark a List of `address` with the kyc Role
+     */
+    function addUserListToKycRole(address[] calldata whitelistedAddresses) external onlyOwner {
         for(uint i=0; i< whitelistedAddresses.length; i++){
-            _whitelist.addRole(whitelistedAddresses[i]);
+            _kyc.add(whitelistedAddresses[i]);
         }
     }
 
-    function removeWhitelistRole(address whitelistedAddress) public onlyOwner {
+    /**
+     * Remove the Role kyc from an `address`
+     */
+    function removeUserFromKycRole(address whitelistedAddress) external onlyOwner {
         require(_balances[whitelistedAddress] == 0, "CROWDLITOKEN: To remove someone from the whitelist the balance have to be 0");
-        _whitelist.removeRole(whitelistedAddress);
+        _kyc.remove(whitelistedAddress);
     }
 
-    function addBlockRole(address blockedAddress, uint8 code) public onlyOwner {
-        _blocklist.addRole(blockedAddress);
+    /**
+     * Add the Role `transferblock` to an `address`
+     */
+    function addTranserBlock(address blockedAddress, uint8 code) external onlyOwner {
+        _transferblock.add(blockedAddress);
         emit Block(blockedAddress, code);
     }
 
-    function removeBlockRole(address blockedAddress) public onlyOwner {
-        _blocklist.removeRole(blockedAddress);
+    /**
+     * Remove the Role `transferblock` from an `address`
+     */
+    function removeTransferblock(address unblockAddress, uint8 code) external onlyOwner {
+        _transferblock.remove(unblockAddress);
+        emit Unblock(unblockAddress, code);
     }
 
+    /**
+     * Get the total amount of allocated tokens for a specific `owner`
+     */
     function allocatedTokens(address owner) public view returns (uint256){
 	    return _allocated[owner];
     }
 
-    function propertyLock(address owner, bytes32 propertyAddress) public view onlyOwner returns (uint256) {
+    /**
+     * Get the amount of allocated tokens for a specific `owner` for a specific `property`
+     */
+    function propertyLock(address owner, bytes32 propertyAddress) public view returns (uint256) {
         return _propertyAmountLocks[owner][propertyAddress];
     }
 
-    function setCode(uint8 code, string memory codeText) public onlyOwner {
+    /**
+     * Add a new `code` with a related `codeText` to the available `_codes`
+     */
+    function setCode(uint8 code, string calldata codeText) external onlyOwner {
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
 
         _codes[code] = codeText;
     }
 
-    function removeCode(uint8 code) public onlyOwner {
+    /**
+     * Remove a `code` to the available `_codes`
+     */
+    function removeCode(uint8 code) external onlyOwner {
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
 
         delete _codes[code];
     }
 
-    function allocateAmountFromAddressForProperty(address owner, bytes32 propertyAddress, uint256 amount) internal onlyOwner {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(bytes32(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
-
+    /**
+     * Allocate a specific `amount` of tokens for a specific `property` for a specific `owner` address
+     *
+     * Requirements:
+     *
+     * - `owner` needs enough unallocated funds
+     */
+    function allocateAmountFromAddressForProperty(address owner, bytes32 propertyAddress, uint256 amount) external onlyOwner {
+        require(_balances[owner] - allocatedTokens(owner) >= amount, "CrowdliToken: Not enough unallocated tokens to allocate the requested amount");
         _allocated[owner] = _allocated[owner].add(amount);
 	    _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].add(amount);
     }
 
-    function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress) internal onlyOwner {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(bytes32(propertyAddress).length == 32, "CROWDLITOKEN: propertyAddress needs a length of 32 bytes");
-
-        _allocated[owner] = _allocated[owner].sub(_propertyAmountLocks[owner][propertyAddress]);
-	    delete _propertyAmountLocks[owner][propertyAddress];
+    /**
+     * Unallocate a specific `amount` of tokens for a specific `property` for a specific `owner` address
+     *
+     * Requirements:
+     *
+     * - `owner` needs enough unallocated funds
+     */
+    function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress, uint256 amount) external onlyOwner {
+        require(propertyLock(owner,propertyAddress) <= amount, "CrowdliToken: There are not enough allocated tokens to unallocate the requested amount");
+        _allocated[owner] = _allocated[owner].sub(amount);
+        _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].sub(amount);
+        if(_propertyAmountLocks[owner][propertyAddress] == 0){
+	        delete _propertyAmountLocks[owner][propertyAddress];
+        }
     }
 
+    /**
+     * Emitted when `value` tokens are burned from one account (`from`)
+     */
     event Burn(address indexed from, uint256 value, uint8 code);
+
+    /**
+     * Emitted when `value` tokens are minted to a account (`to`)
+     */
     event Mint(address indexed to, uint256 value, uint8 code);
+
+    /**
+     * Emitted when `blockAddress` is blocked for transfers for a reason (`code`)
+     */
     event Block(address indexed blockAddress, uint8 code);
+
+    /**
+     * Emitted when `unblockAddress` is no more blocked for transfers for a reason (`code`)
+     */
+    event Unblock(address indexed unblockAddress, uint8 code);
 }
