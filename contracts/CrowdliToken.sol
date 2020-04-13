@@ -466,7 +466,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * - `owner` needs enough unallocated funds
      */
     function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress, uint256 amount) external onlyOwner {
-        require(propertyLock(owner,propertyAddress) > 0, "CROWDLITOKEN: The property no allocated tokens for that address");
+        require(propertyLock(owner,propertyAddress) > 0, "CROWDLITOKEN: The property has no allocated tokens for that address");
         require(propertyLock(owner,propertyAddress) <= amount, "CROWDLITOKEN: There are not enough allocated tokens to unallocate the requested amount");
         _allocated[owner] = _allocated[owner].sub(amount);
         _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].sub(amount);
