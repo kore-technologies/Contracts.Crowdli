@@ -29,14 +29,22 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
 
     mapping (address => uint256) private _balances;
     mapping (address => uint256) private _allocated;
-    mapping (uint8 => string) private _codes;
+    mapping (uint8 => string) private _restrictionCodes;
+    mapping (uint8 => string) private _burnCodes;
+    mapping (uint8 => string) private _mintCodes;
+    mapping (uint8 => string) private _blockCodes;
     mapping (address => mapping (address => uint256)) private _allowances;
     mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
 
     uint256 private _totalSupply;
     bytes32 public constant _name = "CrowdliToken";
     bytes32 public constant _symbol = "CRT";
-    uint8 public constant _decimals = 18;
+    uint8 public constant _decimals = 5;
+
+    uint8 private constant CODE_TYPE_RESTRICTION = 1;
+    uint8 private constant CODE_TYPE_BURN = 2;
+    uint8 private constant CODE_TYPE_MINT = 3;
+    uint8 private constant CODE_TYPE_BLOCK = 4;
 
     uint8 private constant NO_RESTRICTIONS = 0;
     uint8 private constant FROM_NOT_IN_KYC_ROLE = 1;
@@ -47,13 +55,23 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     uint8 private constant NOT_ENOUGH_UNALLOCATED_FUNDS = 6;
 
     constructor() public {
-        _codes[0] = "NO_RESTRICTIONS";
-        _codes[1] = "FROM_NOT_IN_KYC_ROLE";
-        _codes[2] = "TO_NOT_IN_KYC_ROLE";
-        _codes[3] = "FROM_IN_TRANSFERBLOCK_ROLE";
-        _codes[4] = "TO_IN_TRANSFERBLOCK_ROLE";
-        _codes[5] = "NOT_ENOUGH_FUNDS";
-        _codes[6] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
+        _restrictionCodes[0] = "NO_RESTRICTIONS";
+        _restrictionCodes[1] = "FROM_NOT_IN_KYC_ROLE";
+        _restrictionCodes[2] = "TO_NOT_IN_KYC_ROLE";
+        _restrictionCodes[3] = "FROM_IN_TRANSFERBLOCK_ROLE";
+        _restrictionCodes[4] = "TO_IN_TRANSFERBLOCK_ROLE";
+        _restrictionCodes[5] = "NOT_ENOUGH_FUNDS";
+        _restrictionCodes[6] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
+
+        _mintCodes[0] = "PLATTFORM_MINT";
+        _mintCodes[1] = "DIVIDEND_MINT";
+        _mintCodes[3] = "MANUAL_CORRECTION_FROM_OWNER";
+
+        _burnCodes[0] = "MANUAL_CORRECTION_FROM_OWNER";
+        _burnCodes[1] = "FRAUD_DETECTED";
+
+        _blockCodes[0] = "RELOCATION_REDO_KYC";
+        _blockCodes[1] = "FRAUD_DETECTED";
     }
 
     /**
@@ -165,7 +183,6 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0), "ERC20: transfer to the zero address");
         require(detectTransferRestriction(sender,recipient,amount) == NO_RESTRICTIONS, "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
-
         _balances[sender] = _balances[sender].sub(amount, "ERC20: transfer amount exceeds balance");
         _balances[recipient] = _balances[recipient].add(amount);
         emit Transfer(sender, recipient, amount);
@@ -183,7 +200,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      */
     function _mint(address account, uint256 amount) internal onlyOwner {
         require(account != address(0), "ERC20: mint to the zero address");
-
+        require(_kyc.has(account), "CROWDLITOKEN: address is not in kyc list");
         _totalSupply = _totalSupply.add(amount);
         _balances[account] = _balances[account].add(amount);
         emit Transfer(address(0), account, amount);
@@ -202,7 +219,6 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      */
     function _burn(address account, uint256 amount) internal onlyOwner {
         require(account != address(0), "ERC20: burn from the zero address");
-
         _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
         _totalSupply = _totalSupply.sub(amount);
         emit Transfer(account, address(0), amount);
@@ -233,6 +249,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * See {_burn} and {_approve}.
      */
     function burnFrom(address account, uint256 amount, uint8 code) external onlyOwner {
+        require(codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
         _burn(account, amount);
         emit Burn(account, amount, code);
     }
@@ -248,17 +265,42 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * - `to` cannot be the zero address.
      */
     function mintTo(address account, uint256 amount, uint8 code) external onlyOwner {
+        require(codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
         _mint(account, amount);
         _approve(account, _msgSender(), _allowances[account][_msgSender()].add(amount));
         emit Mint(account, amount, code);
     }
 
-
     /**
-     * Returns a human-readable message for a given restriction code
+     * Returns a human-readable message for a given restrictioncode
      */
     function messageForTransferRestriction(uint8 restrictionCode) external view returns (string memory){
-        return _codes[restrictionCode];
+        require(codeExist(restrictionCode,CODE_TYPE_RESTRICTION), "CROWDLITOKEN: The code does not exist");
+        return _restrictionCodes[restrictionCode];
+    }
+
+    /**
+     * Returns a human-readable message for a given burncode
+     */
+    function messageForBurnCode(uint8 burnCode) external view returns (string memory){
+        require(codeExist(burnCode,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
+        return _burnCodes[burnCode];
+    }
+
+    /**
+     * Returns a human-readable message for a given mintcode
+     */
+    function messageForMintCode(uint8 mintCode) external view returns (string memory){
+        require(codeExist(mintCode,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
+        return _mintCodes[mintCode];
+    }
+
+    /**
+     * Returns a human-readable message for a given blockcode
+     */
+    function messageForBlockCode(uint8 blockCode) external view returns (string memory){
+        require(codeExist(blockCode,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
+        return _blockCodes[blockCode];
     }
 
     /**
@@ -266,19 +308,19 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      */
     function detectTransferRestriction(address from, address to, uint256 value) public view returns (uint8){
         if(!_kyc.has(from)){
-           return FROM_NOT_IN_KYC_ROLE;
+            return FROM_NOT_IN_KYC_ROLE;
         } else if(!_kyc.has(to)){
             return TO_NOT_IN_KYC_ROLE;
         } else if(_transferblock.has(from)){
             return FROM_IN_TRANSFERBLOCK_ROLE;
         } else if(_transferblock.has(to)){
-           return TO_IN_TRANSFERBLOCK_ROLE;
+            return TO_IN_TRANSFERBLOCK_ROLE;
         } else if(_balances[from] < value){
-           return NOT_ENOUGH_FUNDS;
+            return NOT_ENOUGH_FUNDS;
         } else if(_balances[from].sub(_allocated[from]) < value){
-           return NOT_ENOUGH_UNALLOCATED_FUNDS;
+            return NOT_ENOUGH_UNALLOCATED_FUNDS;
         } else {
-           return NO_RESTRICTIONS;
+            return NO_RESTRICTIONS;
         }
     }
 
@@ -303,6 +345,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * Add the Role `transferblock` to an `address`
      */
     function addTranserBlock(address blockedAddress, uint8 code) external onlyOwner {
+        require(codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
         _transferblock.add(blockedAddress);
         emit Block(blockedAddress, code);
     }
@@ -311,6 +354,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * Remove the Role `transferblock` from an `address`
      */
     function removeTransferblock(address unblockAddress, uint8 code) external onlyOwner {
+        require(codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
         _transferblock.remove(unblockAddress);
         emit Unblock(unblockAddress, code);
     }
@@ -330,21 +374,75 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     }
 
     /**
-     * Add a new `code` with a related `codeText` to the available `_codes`
+     * Add a new `restrictionCode` with a related `codeText` to the available `_restrictionCodes`
      */
-    function setCode(uint8 code, string calldata codeText) external onlyOwner {
+    function setRestrictionCode(uint8 code, string calldata codeText) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_RESTRICTION), "CROWDLITOKEN: The code already exists");
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
-
-        _codes[code] = codeText;
+        _restrictionCodes[code] = codeText;
     }
 
     /**
-     * Remove a `code` to the available `_codes`
+     * Add a new `burncode` with a related `codeText` to the available `_burnCodes`
      */
-    function removeCode(uint8 code) external onlyOwner {
+    function setBurnCode(uint8 code, string calldata codeText) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code already exists");
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        _burnCodes[code] = codeText;
+    }
 
-        delete _codes[code];
+    /**
+     * Add a new `mintcode` with a related `codeText` to the available `_mintCodes`
+     */
+    function setMintCode(uint8 code, string calldata codeText) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code already exists");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        _mintCodes[code] = codeText;
+    }
+
+    /**
+     * Add a new `blockcode` with a related `codeText` to the available `_blockCodes`
+     */
+    function setBlockCode(uint8 code, string calldata codeText) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code already exists");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        _blockCodes[code] = codeText;
+    }
+
+    /**
+     * Remove a `restrictioncode` from the available `_restrictionCodes`
+     */
+    function removeRestrictionCode(uint8 code) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_RESTRICTION), "CROWDLITOKEN: The code does not exist");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        delete _restrictionCodes[code];
+    }
+
+    /**
+     * Remove a `burncode` from the available `_burnCodes`
+     */
+    function removeBurnCode(uint8 code) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        delete _burnCodes[code];
+    }
+
+    /**
+     * Remove a `mintcode` from the available `_mintCodes`
+     */
+    function removeMintCode(uint8 code) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        delete _mintCodes[code];
+    }
+
+    /**
+     * Remove a `blockcode` from the available `_blockCodes`
+     */
+    function removeBlockCode(uint8 code) external onlyOwner {
+        require(!codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
+        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        delete _blockCodes[code];
     }
 
     /**
@@ -368,11 +466,33 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * - `owner` needs enough unallocated funds
      */
     function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress, uint256 amount) external onlyOwner {
-        require(propertyLock(owner,propertyAddress) <= amount, "CrowdliToken: There are not enough allocated tokens to unallocate the requested amount");
+        require(propertyLock(owner,propertyAddress) > 0, "CROWDLITOKEN: The property no allocated tokens for that address");
+        require(propertyLock(owner,propertyAddress) <= amount, "CROWDLITOKEN: There are not enough allocated tokens to unallocate the requested amount");
         _allocated[owner] = _allocated[owner].sub(amount);
         _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].sub(amount);
         if(_propertyAmountLocks[owner][propertyAddress] == 0){
 	        delete _propertyAmountLocks[owner][propertyAddress];
+        }
+    }
+
+    /**
+     * Check if the given Code exists
+     */
+    function codeExist(uint8 code,uint8 codeType) internal view returns (bool){
+        bytes memory memString;
+        if(codeType == CODE_TYPE_RESTRICTION){
+            memString = bytes(_restrictionCodes[code]);
+        } else if(codeType == CODE_TYPE_BURN){
+            memString = bytes(_burnCodes[code]);
+        } else if(codeType == CODE_TYPE_MINT){
+            memString = bytes(_mintCodes[code]);
+        } else if(codeType == CODE_TYPE_BLOCK){
+            memString = bytes(_blockCodes[code]);
+        }
+        if (memString.length == 0) {
+            return false;
+        } else {
+            return true;
         }
     }
 
