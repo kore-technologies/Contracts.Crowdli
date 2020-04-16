@@ -65,7 +65,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
 
         _mintCodes[0] = "PLATTFORM_MINT";
         _mintCodes[1] = "DIVIDEND_MINT";
-        _mintCodes[3] = "MANUAL_CORRECTION_FROM_OWNER";
+        _mintCodes[2] = "MANUAL_CORRECTION_FROM_OWNER";
 
         _burnCodes[0] = "MANUAL_CORRECTION_FROM_OWNER";
         _burnCodes[1] = "FRAUD_DETECTED";
