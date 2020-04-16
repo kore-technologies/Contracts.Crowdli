@@ -63,15 +63,22 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         _restrictionCodes[5] = "NOT_ENOUGH_FUNDS";
         _restrictionCodes[6] = "NOT_ENOUGH_UNALLOCATED_FUNDS";
 
-        _mintCodes[0] = "PLATTFORM_MINT";
-        _mintCodes[1] = "DIVIDEND_MINT";
-        _mintCodes[2] = "MANUAL_CORRECTION_FROM_OWNER";
+        _mintCodes[0] = "CRT_SALE";
+        _mintCodes[1] = "ANNUAL_ISSUANCE_FEE";
+        _mintCodes[2] = "QUARTERLY_ISSUANCE_FEE";
+        _mintCodes[3] = "REPLACE_TOKENS";
+        _mintCodes[4] = "OTHER";
 
-        _burnCodes[0] = "MANUAL_CORRECTION_FROM_OWNER";
-        _burnCodes[1] = "FRAUD_DETECTED";
+        _burnCodes[0] = "KYC_ISSUE";
+        _burnCodes[1] = "REFUND_EXIT";
+        _burnCodes[2] = "REPLACE_TOKENS";
+        _burnCodes[3] = "OTHER";
 
-        _blockCodes[0] = "RELOCATION_REDO_KYC";
-        _blockCodes[1] = "FRAUD_DETECTED";
+        _blockCodes[0] = "KYC_ISSUE";
+        _blockCodes[1] = "KYT_ISSUE";
+        _blockCodes[2] = "LOST_TOKENS";
+        _blockCodes[3] = "MAINTENANCE";
+        _blockCodes[4] = "OTHER";
     }
 
     /**
