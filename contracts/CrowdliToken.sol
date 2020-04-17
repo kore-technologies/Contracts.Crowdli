@@ -37,9 +37,9 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
 
     uint256 private _totalSupply;
-    string public constant _name = "CROWDLITOKEN";
-    string public constant _symbol = "CRT";
-    uint8 public constant _decimals = 5;
+    string private _name = "CROWDLITOKEN";
+    string private _symbol = "CRT";
+    uint8 private _decimals = 5;
 
     uint8 private constant CODE_TYPE_RESTRICTION = 1;
     uint8 private constant CODE_TYPE_BURN = 2;
@@ -79,6 +79,27 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         _blockCodes[2] = "LOST_TOKENS";
         _blockCodes[3] = "MAINTENANCE";
         _blockCodes[4] = "OTHER";
+    }
+
+    /**
+     * Returns the name of the token
+     */
+    function name() external view returns (string memory){
+        return _name;
+    }
+
+    /**
+     * Returns the symbol of the token
+     */
+    function symbol() external view returns (string memory){
+        return _symbol;
+    }
+
+    /**
+     * Returns the number of decimals the token uses
+     */
+    function decimals() external view returns (uint8){
+        return _decimals;
     }
 
     /**
