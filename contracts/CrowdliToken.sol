@@ -295,7 +295,6 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     function mintTo(address account, uint256 amount, uint8 code) external onlyOwner {
         require(codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
         _mint(account, amount);
-        _approve(account, _msgSender(), _allowances[account][_msgSender()].add(amount));
         emit Mint(account, amount, code);
     }
 
