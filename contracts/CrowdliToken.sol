@@ -84,21 +84,21 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     /**
      * Returns the name of the token
      */
-    function name() external view returns (string memory){
+    function name() public view returns (string memory) {
         return _name;
     }
 
     /**
      * Returns the symbol of the token
      */
-    function symbol() external view returns (string memory){
+    function symbol() public view returns (string memory) {
         return _symbol;
     }
 
     /**
      * Returns the number of decimals the token uses
      */
-    function decimals() external view returns (uint8){
+    function decimals() public view returns (uint8) {
         return _decimals;
     }
 
