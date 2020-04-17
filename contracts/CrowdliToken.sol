@@ -37,8 +37,8 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     mapping (address => mapping (bytes32 => uint256)) private _propertyAmountLocks;
 
     uint256 private _totalSupply;
-    bytes32 public constant _name = "CrowdliToken";
-    bytes32 public constant _symbol = "CRT";
+    string public constant _name = "CROWDLITOKEN";
+    string public constant _symbol = "CRT";
     uint8 public constant _decimals = 5;
 
     uint8 private constant CODE_TYPE_RESTRICTION = 1;
