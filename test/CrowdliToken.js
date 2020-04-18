@@ -147,15 +147,23 @@ contract("Crowdli Token Test", async accounts => {
             return ev.owner == bob && ev.spender == broker && ev.value == 2500;
         });
 
-        await instance.increaseAllowance(broker, 1500,{
+        let increaseTx = await instance.increaseAllowance(broker, 1500,{
             from:bob
+        });
+        truffleAssert.eventEmitted(increaseTx, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 4000;
         });
 
         let approvedTokensAfterIncrease = await instance.allowance(bob,broker);
         assert.equal(approvedTokensAfterIncrease, 4000);
 
-        await instance.decreaseAllowance(broker, 3000,{
+        let decreaseTx = await instance.decreaseAllowance(broker, 3000,{
             from:bob
+        });
+        truffleAssert.eventEmitted(decreaseTx, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 1000;
         });
 
         let approvedTokensAfterDecrease = await instance.allowance(bob,broker);
@@ -547,6 +555,6 @@ contract("Crowdli Token Test", async accounts => {
     });
 
     it("Check Approval Events", async () => {
-        assert.equal(countApprovalEvents, 4);
+        assert.equal(countApprovalEvents, 6);
     });
 });
