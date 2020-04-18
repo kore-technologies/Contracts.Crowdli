@@ -488,7 +488,7 @@ contract("Crowdli Token Test", async accounts => {
     it("Check KYC and Burn with Restrictions", async () => {
         let instance = await CrowdliToken.deployed();
         await truffleAssert.reverts(instance.removeUserFromKycRole(chris), "CROWDLITOKEN: To remove someone from the whitelist the balance have to be 0");
-        await truffleAssert.reverts(instance.burnFrom(chris,3500,1), "CROWDLITOKEN: There are token allocations, its not allowed to burn tokens if there are token allocations");
+        await truffleAssert.reverts(instance.burn(chris,3500,1), "CROWDLITOKEN: There are token allocations, its not allowed to burn tokens if there are token allocations");
 
         let allocatedBalanceOfChris = await instance.propertyLock(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87");
         let unallocTxB = await instance.unallocatePropertyFromAddress(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",allocatedBalanceOfChris);
@@ -497,8 +497,8 @@ contract("Crowdli Token Test", async accounts => {
             return ev.owner == chris && ev.propertyAddress == "0x2575704bdf16abbd6249a21652cc59333c33db87000000000000000000000000" && ev.amount == allocatedBalanceOfChris.toNumber();
         });
 
-        await truffleAssert.reverts(instance.burnFrom(chris,3500,1), "ERC20: burn amount exceeds balance");
-        let burnTx = await instance.burnFrom(chris,1480,1);
+        await truffleAssert.reverts(instance.burn(chris,3500,1), "ERC20: burn amount exceeds balance");
+        let burnTx = await instance.burn(chris,1480,1);
         truffleAssert.eventEmitted(burnTx, 'Burn', (ev) => {
             countBurnEvents++;
             return ev.from == chris && ev.value == 1480 && ev.code == 1;
@@ -514,7 +514,7 @@ contract("Crowdli Token Test", async accounts => {
         assert.equal(balanceOfChris, 0);
         assert.equal(balanceOfBroker, 0);
 
-        let burnTxA = await instance.burnFrom(bob,501020,0);
+        let burnTxA = await instance.burn(bob,501020,0);
         truffleAssert.eventEmitted(burnTxA, 'Burn', (ev) => {
             countBurnEvents++;
             return ev.from == bob && ev.value == 501020 && ev.code == 0;

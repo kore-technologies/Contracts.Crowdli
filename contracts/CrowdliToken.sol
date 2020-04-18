@@ -271,12 +271,11 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     }
 
     /**
-     * Destroys `amount` tokens from `account`.`amount` is then deducted
-     * from the caller's allowance.
+     * Destroys `amount` tokens from `account`.
      *
-     * See {_burn} and {_approve}.
+     * See {_burn}.
      */
-    function burnFrom(address account, uint256 amount, uint8 code) external onlyOwner {
+    function burn(address account, uint256 amount, uint8 code) external onlyOwner {
         require(codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
         require(allocatedTokens(account) == 0, "CROWDLITOKEN: There are token allocations, its not allowed to burn tokens if there are token allocations");
         _burn(account, amount);
