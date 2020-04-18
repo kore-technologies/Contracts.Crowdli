@@ -170,5 +170,181 @@ contract("Crowdli Token Test", async accounts => {
 
         await instance.removeRestrictionCode(105);
         await truffleAssert.reverts(instance.removeRestrictionCode(105), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.messageForTransferRestriction(105), "CROWDLITOKEN: The code does not exist");
+    });
+
+    it("Burn Code Test", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.messageForBurnCode(99), "CROWDLITOKEN: The code does not exist");
+
+        let CODE_0 = await instance.messageForBurnCode(0);
+        assert.equal(CODE_0, 'KYC_ISSUE');
+
+        let CODE_1 = await instance.messageForBurnCode(1);
+        assert.equal(CODE_1, 'REFUND_EXIT');
+
+        let CODE_2 = await instance.messageForBurnCode(2);
+        assert.equal(CODE_2, 'REPLACE_TOKENS');
+
+        let CODE_3 = await instance.messageForBurnCode(3);
+        assert.equal(CODE_3, 'OTHER');
+
+        await truffleAssert.reverts(instance.removeBurnCode(1005), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.removeBurnCode(3), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await truffleAssert.reverts(instance.setBurnCode(3, "TESTCODE"), "CROWDLITOKEN: The code already exists");
+        await truffleAssert.reverts(instance.setBurnCode(99, "TESTCODE"), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await instance.setBurnCode(105,"TESTCODE");
+        let CODE_TEST = await instance.messageForBurnCode(105);
+        assert.equal(CODE_TEST, 'TESTCODE');
+
+        await instance.removeBurnCode(105);
+        await truffleAssert.reverts(instance.removeBurnCode(105), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.messageForBurnCode(105), "CROWDLITOKEN: The code does not exist");
+    });
+
+    it("Mint Code Test", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.messageForMintCode(99), "CROWDLITOKEN: The code does not exist");
+
+        let CODE_0 = await instance.messageForMintCode(0);
+        assert.equal(CODE_0, 'CRT_SALE');
+
+        let CODE_1 = await instance.messageForMintCode(1);
+        assert.equal(CODE_1, 'ANNUAL_ISSUANCE_FEE');
+
+        let CODE_2 = await instance.messageForMintCode(2);
+        assert.equal(CODE_2, 'QUARTERLY_ISSUANCE_FEE');
+
+        let CODE_3 = await instance.messageForMintCode(3);
+        assert.equal(CODE_3, 'REPLACE_TOKENS');
+
+        let CODE_4 = await instance.messageForMintCode(4);
+        assert.equal(CODE_4, 'OTHER');
+
+        await truffleAssert.reverts(instance.removeMintCode(1005), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.removeMintCode(3), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await truffleAssert.reverts(instance.setMintCode(3, "TESTCODE"), "CROWDLITOKEN: The code already exists");
+        await truffleAssert.reverts(instance.setMintCode(99, "TESTCODE"), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await instance.setMintCode(105,"TESTCODE");
+        let CODE_TEST = await instance.messageForMintCode(105);
+        assert.equal(CODE_TEST, 'TESTCODE');
+
+        await instance.removeMintCode(105);
+        await truffleAssert.reverts(instance.removeMintCode(105), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.messageForMintCode(105), "CROWDLITOKEN: The code does not exist");
+    });
+
+    it("Block Code Test", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.messageForBlockCode(99), "CROWDLITOKEN: The code does not exist");
+
+        let CODE_0 = await instance.messageForBlockCode(0);
+        assert.equal(CODE_0, 'KYC_ISSUE');
+
+        let CODE_1 = await instance.messageForBlockCode(1);
+        assert.equal(CODE_1, 'KYT_ISSUE');
+
+        let CODE_2 = await instance.messageForBlockCode(2);
+        assert.equal(CODE_2, 'LOST_TOKENS');
+
+        let CODE_3 = await instance.messageForBlockCode(3);
+        assert.equal(CODE_3, 'MAINTENANCE');
+
+        let CODE_4 = await instance.messageForBlockCode(4);
+        assert.equal(CODE_4, 'OTHER');
+
+        await truffleAssert.reverts(instance.removeBlockCode(1005), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.removeBlockCode(3), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await truffleAssert.reverts(instance.setBlockCode(3, "TESTCODE"), "CROWDLITOKEN: The code already exists");
+        await truffleAssert.reverts(instance.setBlockCode(99, "TESTCODE"), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await instance.setBlockCode(105,"TESTCODEBLOCK");
+        let CODE_TEST = await instance.messageForBlockCode(105);
+        assert.equal(CODE_TEST, 'TESTCODEBLOCK');
+
+        await instance.removeBlockCode(105);
+        await truffleAssert.reverts(instance.removeBlockCode(105), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.messageForBlockCode(105), "CROWDLITOKEN: The code does not exist");
+    });
+
+    it("Transfer Block Check", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.addTranserBlock(alice,508), "CROWDLITOKEN: The code does not exist");
+        await instance.addTranserBlock(alice,2);
+
+        let balanceOfAliceA = await instance.balanceOf(alice);
+        let balanceOfBobA = await instance.balanceOf(bob);
+        let balanceOfChrisA = await instance.balanceOf(chris);
+        let balanceOfBrokerA = await instance.balanceOf(broker);
+
+        assert.equal(balanceOfAliceA, 500000);
+        assert.equal(balanceOfBobA, 496500);
+        assert.equal(balanceOfChrisA, 3500);
+        assert.equal(balanceOfBrokerA, 0);
+
+        let transferRestiction = await instance.detectTransferRestriction(alice, bob, 2500);
+        assert.equal(transferRestiction, 3);
+
+        let CODE = await instance.messageForTransferRestriction(transferRestiction);
+        assert.equal(CODE, 'FROM_IN_TRANSFERBLOCK_ROLE');
+
+        await truffleAssert.reverts(instance.transfer(bob, 2500, {
+            from : alice
+        }), "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
+
+        await truffleAssert.reverts(instance.removeTransferblock(alice,508), "CROWDLITOKEN: The code does not exist");
+        await instance.removeTransferblock(alice,2);
+
+        let transferRestictionAfterRemove = await instance.detectTransferRestriction(alice, bob, 2500);
+        assert.equal(transferRestictionAfterRemove, 0);
+
+        let CODEAfterRemove = await instance.messageForTransferRestriction(transferRestictionAfterRemove);
+        assert.equal(CODEAfterRemove, 'NO_RESTRICTIONS');
+
+        let balanceOfAliceB = await instance.balanceOf(alice);
+        let balanceOfBobB = await instance.balanceOf(bob);
+        let balanceOfChrisB = await instance.balanceOf(chris);
+        let balanceOfBrokerB = await instance.balanceOf(broker);
+
+        assert.equal(balanceOfAliceB, 500000);
+        assert.equal(balanceOfBobB, 496500);
+        assert.equal(balanceOfChrisB, 3500);
+        assert.equal(balanceOfBrokerB, 0);
+
+        await instance.addTranserBlock(bob,3);
+        let transferRestictionBob = await instance.detectTransferRestriction(alice, bob, 2500);
+        assert.equal(transferRestictionBob, 4);
+
+        let CODEBOB = await instance.messageForTransferRestriction(transferRestictionBob);
+        assert.equal(CODEBOB, 'TO_IN_TRANSFERBLOCK_ROLE');
+
+        await truffleAssert.reverts(instance.transfer(bob, 2500, {
+            from : alice
+        }), "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
+
+        await truffleAssert.reverts(instance.removeTransferblock(bob,520), "CROWDLITOKEN: The code does not exist");
+        await instance.removeTransferblock(bob,4);
+
+        let transferRestictionBobAfterRemove = await instance.detectTransferRestriction(alice, bob, 2500);
+        assert.equal(transferRestictionBobAfterRemove, 0);
+
+        await instance.transfer(bob, 2500, {
+            from : alice
+        });
+
+        let balanceOfAlice = await instance.balanceOf(alice);
+        let balanceOfBob = await instance.balanceOf(bob);
+        let balanceOfChris = await instance.balanceOf(chris);
+        let balanceOfBroker = await instance.balanceOf(broker);
+
+        assert.equal(balanceOfAlice, 497500);
+        assert.equal(balanceOfBob, 499000);
+        assert.equal(balanceOfChris, 3500);
+        assert.equal(balanceOfBroker, 0);
     });
 });

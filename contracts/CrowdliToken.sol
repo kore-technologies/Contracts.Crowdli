@@ -449,7 +449,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * Remove a `burncode` from the available `_burnCodes`
      */
     function removeBurnCode(uint8 code) external onlyOwner {
-        require(!codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
+        require(codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
         delete _burnCodes[code];
     }
@@ -458,7 +458,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * Remove a `mintcode` from the available `_mintCodes`
      */
     function removeMintCode(uint8 code) external onlyOwner {
-        require(!codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
+        require(codeExist(code,CODE_TYPE_MINT), "CROWDLITOKEN: The code does not exist");
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
         delete _mintCodes[code];
     }
@@ -467,7 +467,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      * Remove a `blockcode` from the available `_blockCodes`
      */
     function removeBlockCode(uint8 code) external onlyOwner {
-        require(!codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
+        require(codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
         require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
         delete _blockCodes[code];
     }
