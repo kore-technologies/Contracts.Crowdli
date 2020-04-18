@@ -439,10 +439,10 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     /**
      * Remove a `restrictioncode` from the available `_restrictionCodes`
      */
-    function removeRestrictionCode(uint8 code) external onlyOwner {
-        require(!codeExist(code,CODE_TYPE_RESTRICTION), "CROWDLITOKEN: The code does not exist");
-        require(code > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
-        delete _restrictionCodes[code];
+    function removeRestrictionCode(uint8 restrictionCode) external onlyOwner {
+        require(codeExist(restrictionCode,CODE_TYPE_RESTRICTION), "CROWDLITOKEN: The code does not exist");
+        require(restrictionCode > 100, "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+        delete _restrictionCodes[restrictionCode];
     }
 
     /**

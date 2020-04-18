@@ -132,4 +132,43 @@ contract("Crowdli Token Test", async accounts => {
         assert.equal(balanceOfChris, 3500);
         assert.equal(balanceOfBroker, 0);
     });
+
+    it("Transfer Restriction Code Test", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.messageForTransferRestriction(99), "CROWDLITOKEN: The code does not exist");
+
+        let CODE_0 = await instance.messageForTransferRestriction(0);
+        assert.equal(CODE_0, 'NO_RESTRICTIONS');
+
+        let CODE_1 = await instance.messageForTransferRestriction(1);
+        assert.equal(CODE_1, 'FROM_NOT_IN_KYC_ROLE');
+
+        let CODE_2 = await instance.messageForTransferRestriction(2);
+        assert.equal(CODE_2, 'TO_NOT_IN_KYC_ROLE');
+
+        let CODE_3 = await instance.messageForTransferRestriction(3);
+        assert.equal(CODE_3, 'FROM_IN_TRANSFERBLOCK_ROLE');
+
+        let CODE_4 = await instance.messageForTransferRestriction(4);
+        assert.equal(CODE_4, 'TO_IN_TRANSFERBLOCK_ROLE');
+
+        let CODE_5 = await instance.messageForTransferRestriction(5);
+        assert.equal(CODE_5, 'NOT_ENOUGH_FUNDS');
+
+        let CODE_6 = await instance.messageForTransferRestriction(6);
+        assert.equal(CODE_6, 'NOT_ENOUGH_UNALLOCATED_FUNDS');
+
+        await truffleAssert.reverts(instance.removeRestrictionCode(1005), "CROWDLITOKEN: The code does not exist");
+        await truffleAssert.reverts(instance.removeRestrictionCode(5), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await truffleAssert.reverts(instance.setRestrictionCode(5, "TESTCODE"), "CROWDLITOKEN: The code already exists");
+        await truffleAssert.reverts(instance.setRestrictionCode(99, "TESTCODE"), "ERC1404: Codes till 100 are reserverd for the SmartContract internals");
+
+        await instance.setRestrictionCode(105,"TESTCODE");
+        let CODE_TEST = await instance.messageForTransferRestriction(105);
+        assert.equal(CODE_TEST, 'TESTCODE');
+
+        await instance.removeRestrictionCode(105);
+        await truffleAssert.reverts(instance.removeRestrictionCode(105), "CROWDLITOKEN: The code does not exist");
+    });
 });
