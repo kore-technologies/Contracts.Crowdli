@@ -278,6 +278,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      */
     function burnFrom(address account, uint256 amount, uint8 code) external onlyOwner {
         require(codeExist(code,CODE_TYPE_BURN), "CROWDLITOKEN: The code does not exist");
+        require(allocatedTokens(account) == 0, "CROWDLITOKEN: There are token allocations, its not allowed to burn tokens if there are token allocations");
         _burn(account, amount);
         emit Burn(account, amount, code);
     }
@@ -371,7 +372,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
     /**
      * Add the Role `transferblock` to an `address`
      */
-    function addTranserBlock(address blockedAddress, uint8 code) external onlyOwner {
+    function addTransferBlock(address blockedAddress, uint8 code) external onlyOwner {
         require(codeExist(code,CODE_TYPE_BLOCK), "CROWDLITOKEN: The code does not exist");
         _transferblock.add(blockedAddress);
         emit Block(blockedAddress, code);
@@ -483,6 +484,7 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
         require(_balances[owner] - allocatedTokens(owner) >= amount, "CrowdliToken: Not enough unallocated tokens to allocate the requested amount");
         _allocated[owner] = _allocated[owner].add(amount);
 	    _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].add(amount);
+        emit Allocate(owner, propertyAddress, amount);
     }
 
     /**
@@ -494,12 +496,10 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
      */
     function unallocatePropertyFromAddress(address owner, bytes32 propertyAddress, uint256 amount) external onlyOwner {
         require(propertyLock(owner,propertyAddress) > 0, "CROWDLITOKEN: The property has no allocated tokens for that address");
-        require(propertyLock(owner,propertyAddress) <= amount, "CROWDLITOKEN: There are not enough allocated tokens to unallocate the requested amount");
+        require(amount <= propertyLock(owner,propertyAddress), "CROWDLITOKEN: There are not enough allocated tokens to unallocate the requested amount");
         _allocated[owner] = _allocated[owner].sub(amount);
         _propertyAmountLocks[owner][propertyAddress] = _propertyAmountLocks[owner][propertyAddress].sub(amount);
-        if(_propertyAmountLocks[owner][propertyAddress] == 0){
-	        delete _propertyAmountLocks[owner][propertyAddress];
-        }
+        emit Unallocate(owner, propertyAddress, amount);
     }
 
     /**
@@ -522,6 +522,16 @@ contract CrowdliToken is IERC20, IERC1404, Ownable {
             return true;
         }
     }
+
+    /**
+     * Emitted when `tokens` are allocated to a specific property
+     */
+    event Allocate(address indexed owner, bytes32 indexed propertyAddress, uint256 amount);
+
+    /**
+     * Emitted when `tokens` are unallocated from a specific property
+     */
+    event Unallocate(address indexed owner, bytes32 indexed propertyAddress, uint256 amount);
 
     /**
      * Emitted when `value` tokens are burned from one account (`from`)

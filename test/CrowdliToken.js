@@ -7,6 +7,14 @@ contract("Crowdli Token Test", async accounts => {
     const bob = accounts[2];
     const chris = accounts[3];
     const broker = accounts[4];
+    let countTransferEvents = 0;
+    let countAllocateEvents = 0;
+    let countUnallocateEvents = 0;
+    let countBurnEvents = 0;
+    let countMintEvents = 0;
+    let countBlockEvents = 0;
+    let countUnblockEvents = 0;
+    let countApprovalEvents = 0;
 
     it("Name should be equals to `CROWDLITOKEN`", async () => {
         let instance = await CrowdliToken.deployed();
@@ -34,7 +42,11 @@ contract("Crowdli Token Test", async accounts => {
     it("Mint with KYC", async () => {
         let instance = await CrowdliToken.deployed();
         await instance.addUserListToKycRole([alice]);
-        await instance.mintTo(alice, 1000000, 0);
+        let tx = await instance.mintTo(alice, 1000000, 0);
+        truffleAssert.eventEmitted(tx, 'Mint', (ev) => {
+            countMintEvents++;
+            return ev.to == alice && ev.value == 1000000 && ev.code == 0;
+        });
         let balanceOfAlice = await instance.balanceOf(alice);
         assert.equal(balanceOfAlice, 1000000);
     });
@@ -53,13 +65,30 @@ contract("Crowdli Token Test", async accounts => {
     it("Transfer Should Work (from alice to bob) .transfer(address recipient, uint256 amount)", async () => {
         let instance = await CrowdliToken.deployed();
         await instance.addUserListToKycRole([bob]);
-        await instance.transfer(bob, 500000, {
+        let tx = await instance.transfer(bob, 250000, {
             from : alice
+        });
+        truffleAssert.eventEmitted(tx, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == alice && ev.to == bob && ev.value == 250000;
         });
         let balanceOfAlice = await instance.balanceOf(alice);
         let balanceOfBob = await instance.balanceOf(bob);
-        assert.equal(balanceOfAlice, 500000);
-        assert.equal(balanceOfBob, 500000);
+        assert.equal(balanceOfAlice, 750000);
+        assert.equal(balanceOfBob, 250000);
+    });
+
+    it("Transfer should emit a Transfer Event", async () => {
+        let instance = await CrowdliToken.deployed();
+
+        let tx = await instance.transfer(bob, 250000, {
+            from : alice
+        });
+
+        truffleAssert.eventEmitted(tx, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == alice && ev.to == bob && ev.value == 250000;
+        });
     });
 
     it("Total Supply Should be 1'000'000 at this moment", async () => {
@@ -85,19 +114,37 @@ contract("Crowdli Token Test", async accounts => {
         let instance = await CrowdliToken.deployed();
         await instance.addUserListToKycRole([chris,broker]);
 
-        await instance.approve(broker, 2500,{
+        let approveTx = await instance.approve(broker, 2500,{
             from: bob
+        });
+        truffleAssert.eventEmitted(approveTx, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 2500;
         });
 
         let approvedTokens = await instance.allowance(bob,broker);
         assert.equal(approvedTokens, 2500);
 
-        await instance.transferFrom(bob, chris, 2500, {
+        let tx = await instance.transferFrom(bob, chris, 2500, {
             from:broker
         });
 
-        await instance.approve(broker, 2500,{
+        truffleAssert.eventEmitted(tx, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == bob && ev.to == chris && ev.value == 2500;
+        });
+
+        truffleAssert.eventEmitted(tx, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 0;
+        });
+
+        let approveTxA = await instance.approve(broker, 2500,{
             from: bob
+        });
+        truffleAssert.eventEmitted(approveTxA, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 2500;
         });
 
         await instance.increaseAllowance(broker, 1500,{
@@ -118,8 +165,18 @@ contract("Crowdli Token Test", async accounts => {
             from:broker
         }), "ERC20: transfer amount exceeds allowance");
 
-        await instance.transferFrom(bob, chris, 1000, {
+        let txA = await instance.transferFrom(bob, chris, 1000, {
             from:broker
+        });
+
+        truffleAssert.eventEmitted(txA, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == bob && ev.to == chris && ev.value == 1000;
+        });
+
+        truffleAssert.eventEmitted(txA, 'Approval', (ev) => {
+            countApprovalEvents++;
+            return ev.owner == bob && ev.spender == broker && ev.value == 0;
         });
 
         let balanceOfAlice = await instance.balanceOf(alice);
@@ -274,8 +331,12 @@ contract("Crowdli Token Test", async accounts => {
 
     it("Transfer Block Check", async () => {
         let instance = await CrowdliToken.deployed();
-        await truffleAssert.reverts(instance.addTranserBlock(alice,508), "CROWDLITOKEN: The code does not exist");
-        await instance.addTranserBlock(alice,2);
+        await truffleAssert.reverts(instance.addTransferBlock(alice,508), "CROWDLITOKEN: The code does not exist");
+        let blockTx = await instance.addTransferBlock(alice,2);
+        truffleAssert.eventEmitted(blockTx, 'Block', (ev) => {
+            countBlockEvents++;
+            return ev.blockAddress == alice && ev.code == 2;
+        });
 
         let balanceOfAliceA = await instance.balanceOf(alice);
         let balanceOfBobA = await instance.balanceOf(bob);
@@ -298,7 +359,11 @@ contract("Crowdli Token Test", async accounts => {
         }), "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
 
         await truffleAssert.reverts(instance.removeTransferblock(alice,508), "CROWDLITOKEN: The code does not exist");
-        await instance.removeTransferblock(alice,2);
+        let unblockTx = await instance.removeTransferblock(alice,2);
+        truffleAssert.eventEmitted(unblockTx, 'Unblock', (ev) => {
+            countUnblockEvents++;
+            return ev.unblockAddress == alice && ev.code == 2;
+        });
 
         let transferRestictionAfterRemove = await instance.detectTransferRestriction(alice, bob, 2500);
         assert.equal(transferRestictionAfterRemove, 0);
@@ -316,7 +381,11 @@ contract("Crowdli Token Test", async accounts => {
         assert.equal(balanceOfChrisB, 3500);
         assert.equal(balanceOfBrokerB, 0);
 
-        await instance.addTranserBlock(bob,3);
+        let blockTxA = await instance.addTransferBlock(bob,3);
+        truffleAssert.eventEmitted(blockTxA, 'Block', (ev) => {
+            countBlockEvents++;
+            return ev.blockAddress == bob && ev.code == 3;
+        });
         let transferRestictionBob = await instance.detectTransferRestriction(alice, bob, 2500);
         assert.equal(transferRestictionBob, 4);
 
@@ -328,13 +397,22 @@ contract("Crowdli Token Test", async accounts => {
         }), "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
 
         await truffleAssert.reverts(instance.removeTransferblock(bob,520), "CROWDLITOKEN: The code does not exist");
-        await instance.removeTransferblock(bob,4);
+        let unblockTxA = await instance.removeTransferblock(bob,4);
+        truffleAssert.eventEmitted(unblockTxA, 'Unblock', (ev) => {
+            countUnblockEvents++;
+            return ev.unblockAddress == bob && ev.code == 4;
+        });
 
         let transferRestictionBobAfterRemove = await instance.detectTransferRestriction(alice, bob, 2500);
         assert.equal(transferRestictionBobAfterRemove, 0);
 
-        await instance.transfer(bob, 2500, {
+        let tx = await instance.transfer(bob, 2500, {
             from : alice
+        });
+
+        truffleAssert.eventEmitted(tx, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == alice && ev.to == bob && ev.value == 2500;
         });
 
         let balanceOfAlice = await instance.balanceOf(alice);
@@ -346,5 +424,129 @@ contract("Crowdli Token Test", async accounts => {
         assert.equal(balanceOfBob, 499000);
         assert.equal(balanceOfChris, 3500);
         assert.equal(balanceOfBroker, 0);
+    });
+
+    it("Allocate and Unallocate Crowdlitokens to a Property", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.allocateAmountFromAddressForProperty(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",4500), "CrowdliToken: Not enough unallocated tokens to allocate the requested amount");
+        let allocTx = await instance.allocateAmountFromAddressForProperty(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",3000);
+        truffleAssert.eventEmitted(allocTx, 'Allocate', (ev) => {
+            countAllocateEvents++;
+            return ev.owner == chris && ev.propertyAddress == "0x2575704bdf16abbd6249a21652cc59333c33db87000000000000000000000000" && ev.amount == 3000;
+        });
+        let allocatedBalanceOfChris = await instance.propertyLock(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87");
+        let balanceOfChris = await instance.balanceOf(chris);
+        assert.equal(allocatedBalanceOfChris, 3000);
+        assert.equal((balanceOfChris-allocatedBalanceOfChris), 500);
+
+        let totalAllocatedTokensOfChris = await instance.allocatedTokens(chris);
+        assert.equal(totalAllocatedTokensOfChris, 3000);
+
+        await truffleAssert.reverts(instance.allocateAmountFromAddressForProperty(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",501), "CrowdliToken: Not enough unallocated tokens to allocate the requested amount");
+        await truffleAssert.reverts(instance.unallocatePropertyFromAddress(chris,"0x3575704BdF16ABbd6249a21652Cc59333c33Db87",1), "CROWDLITOKEN: The property has no allocated tokens for that address");
+        await truffleAssert.reverts(instance.unallocatePropertyFromAddress(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",3005), "CROWDLITOKEN: There are not enough allocated tokens to unallocate the requested amount");
+
+        let unallocTx = await instance.unallocatePropertyFromAddress(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",1510);
+        truffleAssert.eventEmitted(unallocTx, 'Unallocate', (ev) => {
+            countUnallocateEvents++;
+            return ev.owner == chris && ev.propertyAddress == "0x2575704bdf16abbd6249a21652cc59333c33db87000000000000000000000000" && ev.amount == 1510;
+        });
+
+        let allocatedBalanceOfChrisAfter = await instance.propertyLock(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87");
+
+        assert.equal(allocatedBalanceOfChrisAfter, 1490);
+        assert.equal((balanceOfChris-allocatedBalanceOfChrisAfter), 2010);
+
+        await truffleAssert.reverts(instance.transfer(bob, 2020, {
+            from : chris
+        }), "CROWDLITOKEN: Transferrestriction detected please call detectTransferRestriction(address from, address to, uint256 value) for detailed information");
+
+        let unnalocTxA = await instance.unallocatePropertyFromAddress(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",10);
+        truffleAssert.eventEmitted(unnalocTxA, 'Unallocate', (ev) => {
+            countUnallocateEvents++;
+            return ev.owner == chris && ev.propertyAddress == "0x2575704bdf16abbd6249a21652cc59333c33db87000000000000000000000000" && ev.amount == 10;
+        });
+
+        let tx = await instance.transfer(bob, 2020, {
+            from : chris
+        });
+
+        truffleAssert.eventEmitted(tx, 'Transfer', (ev) => {
+            countTransferEvents++;
+            return ev.from == chris && ev.to == bob && ev.value == 2020;
+        });
+    });
+
+    it("Check KYC and Burn with Restrictions", async () => {
+        let instance = await CrowdliToken.deployed();
+        await truffleAssert.reverts(instance.removeUserFromKycRole(chris), "CROWDLITOKEN: To remove someone from the whitelist the balance have to be 0");
+        await truffleAssert.reverts(instance.burnFrom(chris,3500,1), "CROWDLITOKEN: There are token allocations, its not allowed to burn tokens if there are token allocations");
+
+        let allocatedBalanceOfChris = await instance.propertyLock(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87");
+        let unallocTxB = await instance.unallocatePropertyFromAddress(chris,"0x2575704BdF16ABbd6249a21652Cc59333c33Db87",allocatedBalanceOfChris);
+        truffleAssert.eventEmitted(unallocTxB, 'Unallocate', (ev) => {
+            countUnallocateEvents++;
+            return ev.owner == chris && ev.propertyAddress == "0x2575704bdf16abbd6249a21652cc59333c33db87000000000000000000000000" && ev.amount == allocatedBalanceOfChris.toNumber();
+        });
+
+        await truffleAssert.reverts(instance.burnFrom(chris,3500,1), "ERC20: burn amount exceeds balance");
+        let burnTx = await instance.burnFrom(chris,1480,1);
+        truffleAssert.eventEmitted(burnTx, 'Burn', (ev) => {
+            countBurnEvents++;
+            return ev.from == chris && ev.value == 1480 && ev.code == 1;
+        });
+
+        let balanceOfAlice = await instance.balanceOf(alice);
+        let balanceOfBobA = await instance.balanceOf(bob);
+        let balanceOfChris = await instance.balanceOf(chris);
+        let balanceOfBroker = await instance.balanceOf(broker);
+
+        assert.equal(balanceOfAlice, 497500);
+        assert.equal(balanceOfBobA, 501020);
+        assert.equal(balanceOfChris, 0);
+        assert.equal(balanceOfBroker, 0);
+
+        let burnTxA = await instance.burnFrom(bob,501020,0);
+        truffleAssert.eventEmitted(burnTxA, 'Burn', (ev) => {
+            countBurnEvents++;
+            return ev.from == bob && ev.value == 501020 && ev.code == 0;
+        });
+        let balanceOfBobB = await instance.balanceOf(bob);
+        assert.equal(balanceOfBobB, 0);
+
+        let totalSupply = await instance.totalSupply();
+        assert.equal(totalSupply, 497500);
+    });
+
+    it("Check Transfer Events", async () => {
+        assert.equal(countTransferEvents, 6);
+    });
+
+    it("Check Allocate Events", async () => {
+        assert.equal(countAllocateEvents, 1);
+    });
+
+    it("Check Unallocate Events", async () => {
+        assert.equal(countUnallocateEvents, 3);
+    });
+
+    it("Check Burn Events", async () => {
+        assert.equal(countBurnEvents, 2);
+    });
+
+    it("Check Mint Events", async () => {
+        assert.equal(countMintEvents, 1);
+    });
+
+    it("Check Block Events", async () => {
+        assert.equal(countBlockEvents, 2);
+    });
+
+    it("Check Unblock Events", async () => {
+        assert.equal(countUnblockEvents, 2);
+    });
+
+    it("Check Approval Events", async () => {
+        assert.equal(countApprovalEvents, 4);
     });
 });
