@@ -6,7 +6,7 @@ contract("Crowdli Token Test", async accounts => {
     const alice = accounts[1];
     const bob = accounts[2];
     const chris = accounts[3];
-    const thom = accounts[4];
+    const broker = accounts[4];
 
     it("Name should be equals to `CROWDLITOKEN`", async () => {
         let instance = await CrowdliToken.deployed();
@@ -81,53 +81,55 @@ contract("Crowdli Token Test", async accounts => {
         }), "ERC20: transfer amount exceeds allowance");
     });
 
-    it("Approve 3500 tokens with bob for alice and send these Tokens to chris with alice on behalf of bob", async () => {
+    it("Approve 3500 tokens with bob for broker and send these Tokens to chris with broker on behalf of bob", async () => {
         let instance = await CrowdliToken.deployed();
-        await instance.addUserListToKycRole([chris]);
+        await instance.addUserListToKycRole([chris,broker]);
 
-        await instance.approve(alice, 2500,{
+        await instance.approve(broker, 2500,{
             from: bob
         });
 
-        let approvedTokens = await instance.allowance(bob,alice);
+        let approvedTokens = await instance.allowance(bob,broker);
         assert.equal(approvedTokens, 2500);
 
         await instance.transferFrom(bob, chris, 2500, {
-            from:alice
+            from:broker
         });
 
-        await instance.approve(alice, 2500,{
+        await instance.approve(broker, 2500,{
             from: bob
         });
 
-        await instance.increaseAllowance(alice, 1500,{
+        await instance.increaseAllowance(broker, 1500,{
             from:bob
         });
 
-        let approvedTokensAfterIncrease = await instance.allowance(bob,alice);
+        let approvedTokensAfterIncrease = await instance.allowance(bob,broker);
         assert.equal(approvedTokensAfterIncrease, 4000);
 
-        await instance.decreaseAllowance(alice, 3000,{
+        await instance.decreaseAllowance(broker, 3000,{
             from:bob
         });
 
-        let approvedTokensAfterDecrease = await instance.allowance(bob,alice);
+        let approvedTokensAfterDecrease = await instance.allowance(bob,broker);
         assert.equal(approvedTokensAfterDecrease, 1000);
 
         await truffleAssert.reverts(instance.transferFrom(bob, chris, 2500,{
-            from:alice
+            from:broker
         }), "ERC20: transfer amount exceeds allowance");
 
         await instance.transferFrom(bob, chris, 1000, {
-            from:alice
+            from:broker
         });
 
         let balanceOfAlice = await instance.balanceOf(alice);
         let balanceOfBob = await instance.balanceOf(bob);
         let balanceOfChris = await instance.balanceOf(chris);
+        let balanceOfBroker = await instance.balanceOf(broker);
 
         assert.equal(balanceOfAlice, 500000);
         assert.equal(balanceOfBob, 496500);
         assert.equal(balanceOfChris, 3500);
+        assert.equal(balanceOfBroker, 0);
     });
 });
