@@ -81,7 +81,7 @@ contract("Crowdli Token Test", async accounts => {
         }), "ERC20: transfer amount exceeds allowance");
     });
 
-    it("Approve 3500 tokens with bob for broker and send these Tokens to chris with broker on behalf of bob", async () => {
+    it("Broker Check: Approve 3500 tokens with bob for broker and send these Tokens to chris with broker on behalf of bob", async () => {
         let instance = await CrowdliToken.deployed();
         await instance.addUserListToKycRole([chris,broker]);
 
