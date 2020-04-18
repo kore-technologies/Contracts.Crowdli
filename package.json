@@ -2,6 +2,7 @@
   "name": "Contracts.Crowdli",
   "version": "1.0.0",
   "dependencies": {
-    "openzeppelin-solidity": "^2.5.0"
+    "openzeppelin-solidity": "2.5.0",
+    "truffle-assertions": "0.9.2"
   }
 }

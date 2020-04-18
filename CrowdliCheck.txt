@@ -1,0 +1,3 @@
+addUserListToKycRole -> OK
+mintTo -> OK
+_mint -> OK
