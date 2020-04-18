@@ -38,13 +38,9 @@ Or you can use pre-configured *dev* network to connect to any Etherium client on
 
 Publish contract:
 
-```migrate --reset```.
+```migrate --reset```
 
-Test:
-
-```test```
-
-Or you can run tests on develop network without pre-launching:
+You can run tests on develop network without pre-launching:
 
 ```truffle test```
 
